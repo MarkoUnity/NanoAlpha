@@ -77,4 +77,4 @@ Processing runs **locally** in your browser. Images are not sent anywhere.
 
 ## License
 
-© [Collider Interactive Studio](https://collider.hr) 2026
+© [Collider Interactive Studio](https://collider.hr) 2026 · [Privacy](https://collider.hr/privacy/) · [MIT](LICENSE)
