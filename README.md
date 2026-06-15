@@ -1,79 +1,66 @@
 # NanoAlpha
 
-Extract transparent PNG sprites from AI-generated images using the **light / dark background plate** technique. Upload two identical renders (one on a light background, one on a dark background) and get a clean RGBA PNG — entirely in your browser.
+Static browser app for extracting transparent PNG sprites from AI-generated images.
 
-## How it works
+NanoAlpha starts with a single source image and can optionally use a second image with a contrasting background for better alpha recovery. All processing runs locally in the browser.
 
-Many AI image tools cannot export transparency. A common workaround is to render the same subject twice:
+## Run
 
-1. **Light plate** — subject on a light (or white) background  
-2. **Dark plate** — same subject on a dark (or black) background  
+Serve the folder with any static server:
 
-For each pixel, the difference between the two images reveals how much foreground vs. background is present. NanoAlpha uses **difference matting**:
-
-```
-observed_diff = pixel_light − pixel_dark
-background_diff = bgLight − bgDark
-alpha = 1 − observed_diff / background_diff   (per channel, then combined)
+```bash
+python3 -m http.server 4173
 ```
 
-Foreground color is recovered by un-premultiplying from the chosen plate. You can tune plate colors when AI backgrounds are not pure `#fff` / `#000`.
+Then open:
 
-### Pipeline
-
-1. **Matting** — alpha extraction with configurable channel combine, foreground guard, and color recovery  
-2. **Noise cleanup** — connected-component filtering to remove stray blobs; optional morphological pass  
-3. **Alpha hardening** — crush very low alpha values (invisible on black preview but visible in GIMP / Unity)  
-4. **Export** — lossless PNG download  
-
-All processing uses Canvas `ImageData`; source images are cached in memory and never uploaded to a server.
-
-## Features
-
-- Adjustable **bgLight** / **bgDark** (sliders, color picker, eyedropper on thumbnails)  
-- Live preview with debounced regeneration  
-- Preview backgrounds: checkerboard, white, black  
-- Blob removal and alpha hardening controls  
-- Static single-page app — no build step, no dependencies  
-
-## Usage
-
-1. Open `index.html` in a browser, or serve the folder with any static host.  
-2. Upload **light** and **dark** plate images (same dimensions, pixel-aligned; PNG recommended).  
-3. Set background colors to match what the AI actually used.  
-4. Tune matting and noise settings; preview updates automatically.  
-5. Click **Download PNG**.
-
-### Tips
-
-- Use the **eyedropper** on a background area to sample plate colors.  
-- **Foreground guard** helps keep dark hair/clothing opaque.  
-- Raise **Alpha hardening** if the exported background still shows speckle in GIMP or Unity.  
-- **Keep largest blob** works well for single-character sprites.
-
-## Project structure
-
-```
-NanoAlpha/
-├── index.html          # App (HTML, CSS, JS)
-├── assets/             # Logos, promo images for Charmora section
-└── README.md
+```text
+http://localhost:4173/
 ```
 
-## Hosting
+Uploaded images can usually be processed even when opening `index.html` directly, but the bundled demo image in `assets/test-image.png` should be loaded over `localhost`. Some browsers allow drawing local `file://` images to canvas but block `getImageData()`, which makes the source preview appear while the processed result stays empty.
 
-Deploy as a static site:
+## Workflow
 
-| Platform | Notes |
-|----------|--------|
-| **GitHub Pages** | Settings → Pages → deploy from `main` / root |
-| **Netlify / Vercel / Cloudflare Pages** | Point at repo or drag-and-drop folder |
+1. Upload a source image, or load the demo.
+2. Tune the simple controls, or switch to Advanced for fine control.
+3. Optionally add a second image with the same dimensions and a contrasting background.
+4. Use Result, Alpha, and Edge previews to inspect the matte.
+5. In Alpha mode, use Brush or Eraser for manual alpha overrides.
+6. Download the PNG.
 
-No server or API keys required.
+## Processing Modes
+
+### Single Image
+
+1. Probe the image border and cluster sampled colors in OKLab.
+2. Pick the dominant edge color as the background estimate.
+3. Build a perceptual distance map from the selected background color.
+4. Flood fill background-like pixels from the image border.
+5. Estimate alpha in the edge band with inverse compositing.
+6. Decontaminate edge RGB and propagate foreground color along the contour.
+
+### Two Images
+
+When a compatible second image is added, NanoAlpha switches to difference matting:
+
+```text
+observed_diff = pixel_source - pixel_contrast
+background_diff = bg_source - bg_contrast
+alpha = 1 - observed_diff / background_diff
+```
+
+Foreground color is recovered from the source image, contrast image, or their average depending on the Advanced setting.
+
+## Notes
+
+- Manual Brush/Eraser edits are stored separately from automatic processing and are applied after either algorithm runs.
+- Source and contrast images must have the same dimensions for two-image matting.
+- Use Ctrl + scroll over the previews to zoom. Scrolling stays synchronized across source and output.
 
 ## Privacy
 
-Processing runs **locally** in your browser. Images are not sent anywhere.
+Processing runs locally in your browser. Images are not sent anywhere.
 
 ## License
 

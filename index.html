@@ -1,1361 +1,336 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Extract transparent PNG sprites from AI images using light and dark background plates. Runs entirely in your browser.">
-  <meta name="theme-color" content="#0f1117">
-  <link rel="icon" type="image/png" href="assets/nano-alpha-logo-small.png">
-  <link rel="apple-touch-icon" href="assets/nano-alpha-logo-small.png">
-  <title>NanoAlpha — AI Sprite Transparency Tool</title>
-  <style>
-    :root {
-      --bg: #0f1117;
-      --surface: #181b24;
-      --surface-2: #1f2430;
-      --border: #2d3344;
-      --border-light: #3d455c;
-      --text: #eef0f6;
-      --muted: #8b93a8;
-      --accent: #6c9eff;
-      --accent-hover: #8ab4ff;
-      --success: #5ecf8a;
-      --danger: #f07070;
-      --radius: 10px;
-      --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      min-height: 100vh;
-    }
-    .app-header {
-      padding: 1.25rem 1.75rem;
-      border-bottom: 1px solid var(--border);
-      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
-    }
-    .app-header-inner {
-      max-width: 1400px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-    .brand-top {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .brand-logo {
-      height: 42px;
-      width: auto;
-      display: block;
-    }
-    .brand h1 {
-      margin: 0;
-      font-size: 1.5rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    .brand h1 span { color: var(--accent); }
-    .brand p {
-      margin: 0.5rem 0 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-      max-width: 42rem;
-    }
-    .badge {
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding: 0.35rem 0.65rem;
-      border-radius: 999px;
-      background: rgba(108, 158, 255, 0.12);
-      color: var(--accent);
-      border: 1px solid rgba(108, 158, 255, 0.25);
-      white-space: nowrap;
-      align-self: center;
-    }
-    main {
-      max-width: 1400px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: minmax(300px, 380px) 1fr;
-      gap: 1.25rem;
-      padding: 1.25rem 1.75rem 2rem;
-    }
-    @media (max-width: 960px) {
-      main { grid-template-columns: 1fr; padding: 1rem; }
-    }
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-    .panel-header {
-      padding: 0.85rem 1.1rem;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      background: var(--surface-2);
-    }
-    .panel-body { padding: 1rem 1.1rem; }
-    .sidebar { display: flex; flex-direction: column; gap: 0.85rem; }
-    .sidebar .panel-body { max-height: calc(100vh - 10rem); overflow-y: auto; }
-    .content { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
-    label.field-label {
-      display: block;
-      font-size: 0.82rem;
-      font-weight: 500;
-      margin-bottom: 0.4rem;
-      color: var(--text);
-    }
-    .hint {
-      font-size: 0.76rem;
-      color: var(--muted);
-      margin: -0.15rem 0 0.55rem;
-      line-height: 1.4;
-    }
-    .file-zone {
-      display: block;
-      position: relative;
-      border: 1.5px dashed var(--border-light);
-      border-radius: 8px;
-      padding: 0.85rem 1rem;
-      margin-bottom: 0.75rem;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-      background: var(--bg);
-    }
-    .file-zone:hover {
-      border-color: var(--accent);
-      background: rgba(108, 158, 255, 0.04);
-    }
-    .file-zone input {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .file-zone-title { font-size: 0.85rem; font-weight: 500; }
-    .file-zone-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
-    .file-name {
-      font-size: 0.75rem;
-      color: var(--accent);
-      margin-top: 0.35rem;
-      word-break: break-all;
-    }
-    .section { margin-bottom: 1.1rem; }
-    .section:last-child { margin-bottom: 0; }
-    .section-title {
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--muted);
-      margin-bottom: 0.65rem;
-      padding-bottom: 0.4rem;
-      border-bottom: 1px solid var(--border);
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.45rem;
-    }
-    .row label.ch { margin: 0; flex: 0 0 1rem; font-size: 0.78rem; color: var(--muted); }
-    input[type="range"] { flex: 1; accent-color: var(--accent); height: 4px; }
-    input[type="number"] {
-      width: 3.4rem;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 6px;
-      padding: 0.3rem 0.4rem;
-      font-size: 0.8rem;
-    }
-    input[type="color"] {
-      width: 2.4rem;
-      height: 2rem;
-      padding: 2px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      cursor: pointer;
-      background: var(--bg);
-    }
-    select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 8px;
-      padding: 0.5rem 0.6rem;
-      font-size: 0.85rem;
-      margin-bottom: 0.65rem;
-    }
-    select:last-child { margin-bottom: 0; }
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      margin-bottom: 0.6rem;
-      font-size: 0.84rem;
-      cursor: pointer;
-    }
-    .check-row input { width: 1rem; height: 1rem; accent-color: var(--accent); cursor: pointer; }
-    .btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    button {
-      font-family: inherit;
-      background: var(--accent);
-      color: #0f1117;
-      border: none;
-      border-radius: 8px;
-      padding: 0.6rem 1.1rem;
-      font-size: 0.88rem;
-      cursor: pointer;
-      font-weight: 600;
-      transition: background 0.15s, transform 0.1s;
-    }
-    button:hover { background: var(--accent-hover); }
-    button:active { transform: scale(0.98); }
-    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-    button.secondary {
-      background: var(--surface-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      font-weight: 500;
-    }
-    button.secondary:hover { border-color: var(--border-light); background: var(--border); }
-    button.secondary.active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(108, 158, 255, 0.1);
-    }
-    button.download-btn {
-      align-self: flex-start;
-      padding: 0.7rem 1.5rem;
-    }
-    #status {
-      font-size: 0.84rem;
-      min-height: 1.25em;
-      margin: 0;
-      padding: 0.5rem 0.75rem;
-      border-radius: 8px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-    }
-    #status:empty { display: none; }
-    #status.error { color: var(--danger); border-color: rgba(240, 112, 112, 0.35); background: rgba(240, 112, 112, 0.08); }
-    #status.ok { color: var(--success); border-color: rgba(94, 207, 138, 0.35); background: rgba(94, 207, 138, 0.08); }
-    .preview-panel .panel-body {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      align-items: flex-start;
-    }
-    .preview-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.75rem;
-      width: 100%;
-    }
-    .preview-toolbar label { margin: 0; font-size: 0.82rem; color: var(--muted); }
-    .bg-toggle {
-      display: inline-flex;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .bg-toggle button {
-      border-radius: 0;
-      padding: 0.45rem 0.85rem;
-      font-size: 0.8rem;
-      background: var(--bg);
-      color: var(--muted);
-      border: none;
-      border-right: 1px solid var(--border);
-      font-weight: 500;
-    }
-    .bg-toggle button:last-child { border-right: none; }
-    .bg-toggle button.active {
-      background: var(--accent);
-      color: #0f1117;
-    }
-    .preview-wrap {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: auto;
-      max-height: min(75vh, 900px);
-    }
-    .preview-wrap.bg-checker {
-      background:
-        linear-gradient(45deg, #2a2e3a 25%, transparent 25%),
-        linear-gradient(-45deg, #2a2e3a 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, #2a2e3a 75%),
-        linear-gradient(-45deg, transparent 75%, #2a2e3a 75%);
-      background-size: 16px 16px;
-      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
-      background-color: #22262f;
-    }
-    .preview-wrap.bg-white { background: #ffffff; }
-    .preview-wrap.bg-black { background: #000000; }
-    #preview { display: block; max-width: 100%; height: auto; }
-    .thumb-row {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      width: 100%;
-    }
-    .thumb-box {
-      flex: 0 0 auto;
-      text-align: center;
-    }
-    .thumb-box canvas {
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      cursor: crosshair;
-      display: block;
-      margin: 0 auto;
-      background: var(--bg);
-      max-width: 120px;
-      max-height: 160px;
-      width: auto;
-      height: auto;
-    }
-    .thumb-box span {
-      display: block;
-      font-size: 0.72rem;
-      color: var(--muted);
-      margin-top: 0.3rem;
-    }
-    .controls-disabled { opacity: 0.45; pointer-events: none; }
-    .promo {
-      border-top: 1px solid var(--border);
-      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
-      padding: 2.5rem 1.75rem 3rem;
-    }
-    .promo-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 2.5rem;
-      align-items: center;
-    }
-    @media (max-width: 860px) {
-      .promo-inner { grid-template-columns: 1fr; justify-items: center; text-align: center; }
-    }
-    .promo-copy { max-width: 28rem; }
-    .promo-banner {
-      width: 100%;
-      max-width: 320px;
-      height: auto;
-      border-radius: 12px;
-      margin-bottom: 1.25rem;
-      display: block;
-    }
-    @media (max-width: 860px) { .promo-banner { margin-left: auto; margin-right: auto; } }
-    .promo-copy h2 {
-      margin: 0 0 0.5rem;
-      font-size: 1.65rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    .promo-copy h2 span { color: var(--accent); }
-    .promo-copy p {
-      margin: 0 0 1.25rem;
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.55;
-    }
-    .play-badge-link {
-      display: inline-block;
-      padding: 12px;
-      margin: -12px;
-      line-height: 0;
-    }
-    .play-badge {
-      height: 48px;
-      width: auto;
-      display: block;
-    }
-    .phone-stage {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.85rem;
-    }
-    .phone-frame {
-      position: relative;
-      width: 220px;
-      padding: 3px;
-      border-radius: 30px;
-      background: #141418;
-      border: 1px solid #2e3038;
-      box-shadow:
-        0 24px 48px rgba(0, 0, 0, 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    }
-    .phone-screen {
-      position: relative;
-      border-radius: 27px;
-      overflow: hidden;
-      background: #000;
-      aspect-ratio: 9 / 16;
-    }
-    .phone-island {
-      position: absolute;
-      top: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 52px;
-      height: 12px;
-      background: #000;
-      border-radius: 999px;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .carousel-slide {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      transition: opacity 0.5s ease;
-      pointer-events: none;
-    }
-    .carousel-slide.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .carousel-slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    .carousel-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.65rem;
-    }
-    .carousel-btn {
-      width: 2rem;
-      height: 2rem;
-      padding: 0;
-      border-radius: 50%;
-      font-size: 1.1rem;
-      line-height: 1;
-      background: var(--surface-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .carousel-dots {
-      display: flex;
-      gap: 0.4rem;
-    }
-    .carousel-dot {
-      width: 7px;
-      height: 7px;
-      padding: 0;
-      border-radius: 50%;
-      background: var(--border-light);
-      border: none;
-      min-width: 0;
-    }
-    .carousel-dot.active { background: var(--accent); }
-    .app-footer {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0 1.75rem 1.5rem;
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-align: center;
-    }
-    .app-footer a {
-      color: var(--muted);
-      text-decoration: none;
-    }
-    .app-footer a:hover { color: var(--text); }
-    .app-footer .sep { margin: 0 0.35rem; user-select: none; }
-    .color-row {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin-bottom: 0.5rem;
-    }
-    .color-hex { font-size: 0.78rem; color: var(--muted); font-family: ui-monospace, monospace; }
-  </style>
-</head>
-<body>
-  <header class="app-header">
-    <div class="app-header-inner">
-      <div class="brand">
-        <div class="brand-top">
-          <img
-            class="brand-logo"
-            src="assets/nano-alpha-logo.png"
-            alt=""
-            width="1254"
-            height="1254"
-          >
-          <h1>Nano<span>Alpha</span></h1>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Extract transparent PNG sprites from AI images. Runs entirely in your browser.">
+    <meta name="theme-color" content="#0f1117">
+    <title>NanoAlpha - AI Sprite Transparency Tool</title>
+    <link rel="icon" type="image/png" href="assets/nano-alpha-logo-small.png">
+    <link rel="apple-touch-icon" href="assets/nano-alpha-logo-small.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-top">
+            <img
+              class="brand-logo"
+              src="assets/nano-alpha-logo.png"
+              alt=""
+              width="1254"
+              height="1254"
+            >
+            <h1>Nano<span>Alpha</span></h1>
+          </div>
+          <p>Extract transparent PNG sprites from AI-generated images. Processing runs entirely in your browser.</p>
+          <p id="statusText" class="status-line">Ready</p>
         </div>
-        <p>Extract transparent PNG sprites from AI-generated images. Upload the same render on a light and dark background — processing runs entirely in your browser.</p>
-      </div>
-      <span class="badge">Processed locally</span>
+        <div class="topbar-side">
+          <div class="topbar-actions">
+            <button id="demoButton" type="button">Load demo</button>
+            <button id="downloadButton" type="button">Download PNG</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="controls" aria-label="Processing controls">
+          <section class="control-section input-section">
+            <h2>Input Images</h2>
+            <label id="sourceDropZone" class="input-drop-zone" for="fileInput">
+              <input id="fileInput" type="file" accept="image/*">
+              <span class="input-drop-title">Source image</span>
+              <span class="input-drop-sub">Drag &amp; drop here or choose an image</span>
+              <span id="sourceStatusText" class="input-drop-status">Demo image loaded</span>
+            </label>
+            <label id="contrastDropZone" class="input-drop-zone" for="contrastFileInput">
+              <input id="contrastFileInput" type="file" accept="image/*">
+              <span class="input-drop-title">Contrast image <em>Optional</em></span>
+              <span class="input-drop-sub">Same render, different background</span>
+              <span id="contrastStatusText" class="input-drop-status">Not added</span>
+            </label>
+            <p class="input-help">Upload the same image with a contrasting background for a cleaner matte. The second image must match the source dimensions.</p>
+            <button id="clearContrastButton" class="clear-contrast-button" type="button" disabled>Clear contrast image</button>
+          </section>
+
+          <section class="control-section">
+            <div class="section-heading">
+              <h2>Background</h2>
+              <button id="autoColorButton" type="button">Auto</button>
+            </div>
+            <label class="color-row">
+              <span>Color</span>
+              <input id="bgColorInput" type="color" value="#f0f0f4">
+            </label>
+          </section>
+
+          <section class="control-section">
+            <div class="control-mode-tabs" role="tablist" aria-label="Control mode">
+              <button class="control-mode-tab is-active" type="button" data-control-mode="simple">Simple</button>
+              <button class="control-mode-tab" type="button" data-control-mode="advanced">Advanced</button>
+            </div>
+
+            <div id="simpleControls" class="control-mode-panel">
+              <label>
+                <span>Remove background <output id="simpleRemoveValue">50%</output></span>
+                <input id="simpleRemoveInput" type="range" min="0" max="100" step="1" value="50">
+              </label>
+              <label>
+                <span>Edge cleanup <output id="simpleCleanupValue">65%</output></span>
+                <input id="simpleCleanupInput" type="range" min="0" max="100" step="1" value="65">
+              </label>
+              <label>
+                <span>Edge softness <output id="simpleSoftnessValue">35%</output></span>
+                <input id="simpleSoftnessInput" type="range" min="0" max="100" step="1" value="35">
+              </label>
+              <label class="check-row">
+                <input id="simpleHolesInput" type="checkbox" checked>
+                <span>Fill holes</span>
+              </label>
+            </div>
+
+            <div id="advancedControls" class="control-mode-panel" hidden>
+              <section class="advanced-group">
+                <h2>Background Tuning</h2>
+                <label>
+                  <span>Probe size <output id="probeValue">0.5%</output></span>
+                  <input id="probeInput" type="range" min="0.5" max="8" step="0.5" value="0.5">
+                </label>
+                <label>
+                  <span>Tolerance <output id="toleranceValue">15</output></span>
+                  <input id="toleranceInput" type="range" min="2" max="140" step="1" value="15">
+                </label>
+              </section>
+
+              <section class="advanced-group">
+                <h2>Matte</h2>
+                <label>
+                  <span>Edge width <output id="edgeValue">5 px</output></span>
+                  <input id="edgeInput" type="range" min="1" max="64" step="1" value="5">
+                </label>
+                <label>
+                  <span>Softness <output id="softnessValue">18</output></span>
+                  <input id="softnessInput" type="range" min="0" max="90" step="1" value="18">
+                </label>
+                <label>
+                  <span>Refine <output id="refineValue">2</output></span>
+                  <input id="refineInput" type="range" min="0" max="4" step="1" value="2">
+                </label>
+                <label class="check-row">
+                  <input id="holesInput" type="checkbox" checked>
+                  <span>Fill internal holes</span>
+                </label>
+              </section>
+
+              <section class="advanced-group">
+                <h2>Color Cleanup</h2>
+                <label>
+                  <span>Decontaminate <output id="decontamValue">65%</output></span>
+                  <input id="decontamInput" type="range" min="0" max="100" step="1" value="65">
+                </label>
+                <label>
+                  <span>Erode extend <output id="erodeValue">25%</output></span>
+                  <input id="erodeInput" type="range" min="0" max="100" step="1" value="25">
+                </label>
+                <label>
+                  <span>Clip transparent <output id="clipValue">2</output></span>
+                  <input id="clipInput" type="range" min="0" max="32" step="1" value="2">
+                </label>
+              </section>
+
+              <section id="dualAdvancedGroup" class="advanced-group">
+                <h2>Second Image Matte</h2>
+                <div class="section-heading compact-heading">
+                  <label class="color-row">
+                    <span>Contrast bg</span>
+                    <input id="contrastBgColorInput" type="color" value="#111111">
+                  </label>
+                  <button id="autoContrastColorButton" type="button" disabled>Auto</button>
+                </div>
+                <label>
+                  <span>Alpha cutoff <output id="dualAlphaCutoffValue">2</output></span>
+                  <input id="dualAlphaCutoffInput" type="range" min="0" max="50" step="1" value="2" disabled>
+                </label>
+                <label>
+                  <span>Channel combine</span>
+                  <select id="dualAlphaCombineInput" disabled>
+                    <option value="min" selected>Min</option>
+                    <option value="max">Max</option>
+                    <option value="avg">Average</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Color recovery</span>
+                  <select id="dualRecoveryInput" disabled>
+                    <option value="contrast" selected>Contrast image</option>
+                    <option value="source">Source image</option>
+                    <option value="average">Average</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Foreground guard <output id="dualDiffGateValue">30%</output></span>
+                  <input id="dualDiffGateInput" type="range" min="0" max="80" step="1" value="30" disabled>
+                </label>
+                <label>
+                  <span>Guard softness <output id="dualDiffGateSoftValue">12%</output></span>
+                  <input id="dualDiffGateSoftInput" type="range" min="0" max="40" step="1" value="12" disabled>
+                </label>
+                <label>
+                  <span>Difference metric</span>
+                  <select id="dualDiffMetricInput" disabled>
+                    <option value="max" selected>Max</option>
+                    <option value="avg">Average</option>
+                  </select>
+                </label>
+              </section>
+            </div>
+          </section>
+
+          <section class="stats" aria-live="polite">
+            <h2>Stats</h2>
+            <dl>
+              <div>
+                <dt>Mode</dt>
+                <dd id="modeText">Single image</dd>
+              </div>
+              <div>
+                <dt>Detected color</dt>
+                <dd id="detectedColorText">-</dd>
+              </div>
+              <div>
+                <dt>Uniformity</dt>
+                <dd id="uniformityText">-</dd>
+              </div>
+              <div>
+                <dt>Background</dt>
+                <dd id="backgroundText">-</dd>
+              </div>
+              <div>
+                <dt>Erode radius</dt>
+                <dd id="erodeRadiusText">-</dd>
+              </div>
+              <div>
+                <dt>Time</dt>
+                <dd id="timeText">-</dd>
+              </div>
+            </dl>
+          </section>
+        </aside>
+
+        <section class="preview-pane">
+          <div class="preview-topbar">
+            <div class="preview-bg-controls" aria-label="Output background">
+              <span>Output bg</span>
+              <div class="segmented-control">
+                <button class="bg-tab is-active" type="button" data-bg-mode="checker">Checker</button>
+                <button class="bg-tab" type="button" data-bg-mode="solid">Solid</button>
+              </div>
+              <input id="previewBgColorInput" type="color" value="#111827" aria-label="Solid output background">
+            </div>
+          </div>
+          <div id="dropZone" class="split-stage">
+            <section class="preview-panel">
+              <div class="panel-title source-toolbar">
+                <span id="leftPreviewLabel">Source</span>
+                <div class="tabs" role="tablist" aria-label="Output preview mode">
+                  <button class="tab is-active" type="button" data-view="result">Result</button>
+                  <button class="tab" type="button" data-view="alpha">Alpha</button>
+                  <button class="tab" type="button" data-view="edge">Edge</button>
+                </div>
+              </div>
+              <div class="canvas-stage source-stage">
+                <div class="canvas-frame">
+                  <canvas id="sourceCanvas"></canvas>
+                  <canvas id="leftResultCanvas" hidden></canvas>
+                </div>
+              </div>
+            </section>
+            <section class="preview-panel">
+              <div id="outputPanelToolbar" class="output-panel-toolbar">
+                <span id="outputPanelLabel" class="output-panel-label">Result Preview</span>
+                <div id="alphaTools" class="alpha-tools" hidden aria-label="Alpha paint tools">
+                  <div class="segmented-control alpha-tool-switch" role="group" aria-label="Paint tool">
+                    <button class="alpha-tool is-active" type="button" data-alpha-tool="brush" title="Add alpha">Brush</button>
+                    <button class="alpha-tool" type="button" data-alpha-tool="eraser" title="Erase alpha">Eraser</button>
+                  </div>
+                  <div class="alpha-tool-divider" aria-hidden="true"></div>
+                  <label class="alpha-size-control">
+                    <span>Size <output id="alphaBrushSizeValue">14 px</output></span>
+                    <input id="alphaBrushSizeInput" type="range" min="1" max="96" step="1" value="14">
+                  </label>
+                  <div class="alpha-tool-divider" aria-hidden="true"></div>
+                  <div class="alpha-command-group">
+                    <button id="alphaUndoButton" class="alpha-command" type="button" disabled>Undo</button>
+                    <button id="alphaResetButton" class="alpha-command" type="button" disabled>Reset</button>
+                  </div>
+                </div>
+              </div>
+              <div id="outputStage" class="canvas-stage checkerboard">
+                <div class="canvas-frame">
+                  <canvas id="resultCanvas"></canvas>
+                  <canvas id="alphaCanvas" hidden></canvas>
+                  <canvas id="maskCanvas" hidden></canvas>
+                  <canvas id="edgeCanvas" hidden></canvas>
+                  <div id="alphaBrushCursor" class="alpha-brush-cursor" hidden></div>
+                </div>
+              </div>
+            </section>
+            <div id="dropHint" class="drop-hint" hidden>Drop image</div>
+            <div id="zoomHint" class="zoom-hint" hidden><kbd>Ctrl</kbd> + scroll to zoom</div>
+          </div>
+        </section>
+      </main>
     </div>
-  </header>
 
-  <main>
-    <aside class="sidebar">
-      <div class="panel">
-        <div class="panel-header">Input images</div>
-        <div class="panel-body">
-          <label class="file-zone" for="lightFile">
-            <input type="file" id="lightFile" accept="image/*">
-            <div class="file-zone-title">Light background plate</div>
-            <div class="file-zone-sub">PNG recommended · same dimensions as dark plate</div>
-            <div class="file-name" id="lightFileName"></div>
-          </label>
-          <label class="file-zone" for="darkFile">
-            <input type="file" id="darkFile" accept="image/*">
-            <div class="file-zone-title">Dark background plate</div>
-            <div class="file-zone-sub">PNG recommended · pixel-aligned with light plate</div>
-            <div class="file-name" id="darkFileName"></div>
-          </label>
+    <section class="promo" aria-labelledby="promo-heading">
+      <div class="promo-inner">
+        <div class="promo-copy">
+          <img class="promo-banner" src="assets/charmora-banner-big.png" alt="Charmora app banner" width="640" height="360">
+          <h2 id="promo-heading">Try <span>Charmora</span></h2>
+          <p>Practice real conversations with AI in a safe, pressure-free environment. Get instant feedback on your tone and flow &mdash; build social confidence through guided scenarios.</p>
+          <a
+            class="play-badge-link"
+            href="https://play.google.com/store/apps/details?id=com.ColliderInteractiveStudio.Charmora"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Get Charmora on Google Play"
+          >
+            <img
+              class="play-badge"
+              src="assets/GetItOnGooglePlay_Badge_Web_color_English.png"
+              alt="Get it on Google Play"
+              width="478"
+              height="142"
+            >
+          </a>
         </div>
-      </div>
 
-      <div class="panel">
-        <div class="panel-header">Settings</div>
-        <div class="panel-body">
-          <div id="settingsBlock" class="controls-disabled">
-            <div class="section">
-              <div class="section-title">Light plate color (bgLight)</div>
-              <div class="color-row">
-                <input type="color" id="bgLightPicker" value="#ffffff">
-                <span class="color-hex" id="bgLightHex">#ffffff</span>
-              </div>
-              <div class="row"><label class="ch">R</label><input type="range" id="bgLightR" min="0" max="255" value="255"><input type="number" id="bgLightRn" min="0" max="255" value="255"></div>
-              <div class="row"><label class="ch">G</label><input type="range" id="bgLightG" min="0" max="255" value="255"><input type="number" id="bgLightGn" min="0" max="255" value="255"></div>
-              <div class="row"><label class="ch">B</label><input type="range" id="bgLightB" min="0" max="255" value="255"><input type="number" id="bgLightBn" min="0" max="255" value="255"></div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Dark plate color (bgDark)</div>
-              <div class="color-row">
-                <input type="color" id="bgDarkPicker" value="#000000">
-                <span class="color-hex" id="bgDarkHex">#000000</span>
-              </div>
-              <div class="row"><label class="ch">R</label><input type="range" id="bgDarkR" min="0" max="255" value="0"><input type="number" id="bgDarkRn" min="0" max="255" value="0"></div>
-              <div class="row"><label class="ch">G</label><input type="range" id="bgDarkG" min="0" max="255" value="0"><input type="number" id="bgDarkGn" min="0" max="255" value="0"></div>
-              <div class="row"><label class="ch">B</label><input type="range" id="bgDarkB" min="0" max="255" value="0"><input type="number" id="bgDarkBn" min="0" max="255" value="0"></div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Matting</div>
-              <label class="field-label" for="alphaCutoff">Alpha cutoff (0–50)</label>
-              <p class="hint">Pixels below this value become fully transparent.</p>
-              <div class="row">
-                <input type="range" id="alphaCutoff" min="0" max="50" value="2">
-                <input type="number" id="alphaCutoffn" min="0" max="50" value="2">
-              </div>
-              <label class="field-label" for="alphaCombine">Channel alpha combine</label>
-              <select id="alphaCombine">
-                <option value="min" selected>Min (conservative)</option>
-                <option value="max">Max (aggressive)</option>
-                <option value="avg">Average</option>
-              </select>
-              <label class="field-label" for="recoverySource">Foreground color recovery</label>
-              <select id="recoverySource">
-                <option value="dark" selected>Dark plate</option>
-                <option value="light">Light plate</option>
-                <option value="average">Average</option>
-              </select>
-              <label class="field-label" for="diffGate">Foreground guard — min. image diff (%)</label>
-              <p class="hint">Below threshold, pixels stay opaque (helps dark hair &amp; clothing).</p>
-              <div class="row">
-                <input type="range" id="diffGate" min="0" max="80" value="30">
-                <input type="number" id="diffGaten" min="0" max="80" value="30">
-              </div>
-              <label class="field-label" for="diffGateSoft">Transition width (%)</label>
-              <div class="row">
-                <input type="range" id="diffGateSoft" min="0" max="40" value="12">
-                <input type="number" id="diffGateSoftn" min="0" max="40" value="12">
-              </div>
-              <label class="field-label" for="diffMetric">Difference metric</label>
-              <select id="diffMetric">
-                <option value="max" selected>Max (strictest on dark tones)</option>
-                <option value="avg">Average</option>
-              </select>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Noise cleanup</div>
-              <label class="check-row">
-                <input type="checkbox" id="blobEnabled" checked>
-                Remove disconnected blobs
-              </label>
-              <label class="check-row">
-                <input type="checkbox" id="blobLargest" checked>
-                Keep largest connected blob only
-              </label>
-              <label class="field-label" for="blobMinArea">Min. blob size (pixels)</label>
-              <div class="row">
-                <input type="range" id="blobMinArea" min="0" max="5000" value="64" step="16">
-                <input type="number" id="blobMinArean" min="0" max="50000" value="64" step="1">
-              </div>
-              <label class="field-label" for="blobThreshold">Alpha threshold for connectivity</label>
-              <div class="row">
-                <input type="range" id="blobThreshold" min="1" max="128" value="12">
-                <input type="number" id="blobThresholdn" min="1" max="255" value="12">
-              </div>
-              <label class="field-label" for="blobMorph">Morphological filter (0 = off)</label>
-              <p class="hint">Erode + dilate before analysis — breaks thin bridges to noise.</p>
-              <div class="row">
-                <input type="range" id="blobMorph" min="0" max="3" value="1">
-                <input type="number" id="blobMorphn" min="0" max="3" value="1">
-              </div>
-              <label class="field-label" for="alphaHard">Alpha hardening — below becomes 0</label>
-              <p class="hint">Low alpha is invisible on black preview but shows in GIMP/Unity. Try 24–40.</p>
-              <div class="row">
-                <input type="range" id="alphaHard" min="0" max="64" value="28">
-                <input type="number" id="alphaHardn" min="0" max="255" value="28">
-              </div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Eyedropper</div>
-              <p class="hint">Pick a target, then click a loaded thumbnail to sample background color.</p>
-              <div class="btn-row">
-                <button type="button" class="secondary" id="pickLight">Sample bgLight</button>
-                <button type="button" class="secondary" id="pickDark">Sample bgDark</button>
-              </div>
-            </div>
-
-            <div class="btn-row" style="margin-top:0.5rem">
-              <button type="button" id="regenerate">Regenerate</button>
+        <div class="phone-stage">
+          <div class="phone-frame">
+            <div class="phone-screen" id="phoneCarousel">
+              <div class="phone-island" aria-hidden="true"></div>
+              <div class="carousel-slide active"><img src="assets/play-store-screenshot-may-9-16.png" alt="Charmora screenshot - May"></div>
+              <div class="carousel-slide"><img src="assets/play-store-screenshot-hana-9-16.png" alt="Charmora screenshot - Hana"></div>
+              <div class="carousel-slide"><img src="assets/play-store-screenshot-kaya-9-16.png" alt="Charmora screenshot - Kaya"></div>
+              <div class="carousel-slide"><img src="assets/play-store-screenshot-lucian-9-16.png" alt="Charmora screenshot - Lucian"></div>
+              <div class="carousel-slide"><img src="assets/play-store-screenshot-emmett-9-16.png" alt="Charmora screenshot - Emmett"></div>
             </div>
           </div>
-        </div>
-      </div>
-    </aside>
-
-    <section class="content">
-      <p id="status"></p>
-
-      <div class="panel preview-panel">
-        <div class="panel-header">Preview &amp; export</div>
-        <div class="panel-body">
-          <div class="thumb-row" id="thumbRow" hidden>
-            <div class="thumb-box">
-              <canvas id="thumbLight"></canvas>
-              <span>Light plate · click to sample</span>
-            </div>
-            <div class="thumb-box">
-              <canvas id="thumbDark"></canvas>
-              <span>Dark plate · click to sample</span>
-            </div>
+          <div class="carousel-controls">
+            <button type="button" class="carousel-btn secondary" id="carouselPrev" aria-label="Previous screenshot">&lsaquo;</button>
+            <div class="carousel-dots" id="carouselDots" role="tablist" aria-label="Screenshot navigation"></div>
+            <button type="button" class="carousel-btn secondary" id="carouselNext" aria-label="Next screenshot">&rsaquo;</button>
           </div>
-
-          <div class="preview-toolbar">
-            <label>Preview background</label>
-            <div class="bg-toggle" id="bgToggle">
-              <button type="button" class="active" data-bg="checker">Checker</button>
-              <button type="button" data-bg="white">White</button>
-              <button type="button" data-bg="black">Black</button>
-            </div>
-          </div>
-
-          <div class="preview-wrap bg-checker" id="previewWrap">
-            <canvas id="preview"></canvas>
-          </div>
-
-          <button type="button" class="download-btn" id="download" disabled>Download PNG</button>
         </div>
       </div>
     </section>
-  </main>
 
-  <section class="promo" aria-labelledby="promo-heading">
-    <div class="promo-inner">
-      <div class="promo-copy">
-        <img class="promo-banner" src="assets/charmora-banner-big.png" alt="Charmora app banner" width="640" height="360">
-        <h2 id="promo-heading">Try <span>Charmora</span></h2>
-        <p>Practice real conversations with AI in a safe, pressure-free environment. Get instant feedback on your tone and flow — build social confidence through guided scenarios.</p>
-        <a
-          class="play-badge-link"
-          href="https://play.google.com/store/apps/details?id=com.ColliderInteractiveStudio.Charmora"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Get Charmora on Google Play"
-        >
-          <img
-            class="play-badge"
-            src="assets/GetItOnGooglePlay_Badge_Web_color_English.png"
-            alt="Get it on Google Play"
-            width="478"
-            height="142"
-          >
-        </a>
-      </div>
+    <footer class="app-footer">
+      <a href="https://collider.hr" target="_blank" rel="noopener noreferrer">&copy; Collider Interactive Studio 2026</a><span class="sep">&middot;</span><a href="https://collider.hr/privacy/" target="_blank" rel="noopener noreferrer">Privacy</a><span class="sep">&middot;</span><a href="LICENSE" target="_blank" rel="noopener noreferrer">MIT</a>
+    </footer>
 
-      <div class="phone-stage">
-        <div class="phone-frame">
-          <div class="phone-screen" id="phoneCarousel">
-            <div class="phone-island" aria-hidden="true"></div>
-            <div class="carousel-slide active"><img src="assets/play-store-screenshot-may-9-16.png" alt="Charmora screenshot — May"></div>
-            <div class="carousel-slide"><img src="assets/play-store-screenshot-hana-9-16.png" alt="Charmora screenshot — Hana"></div>
-            <div class="carousel-slide"><img src="assets/play-store-screenshot-kaya-9-16.png" alt="Charmora screenshot — Kaya"></div>
-            <div class="carousel-slide"><img src="assets/play-store-screenshot-lucian-9-16.png" alt="Charmora screenshot — Lucian"></div>
-            <div class="carousel-slide"><img src="assets/play-store-screenshot-emmett-9-16.png" alt="Charmora screenshot — Emmett"></div>
-          </div>
-        </div>
-        <div class="carousel-controls">
-          <button type="button" class="carousel-btn secondary" id="carouselPrev" aria-label="Previous screenshot">‹</button>
-          <div class="carousel-dots" id="carouselDots" role="tablist" aria-label="Screenshot navigation"></div>
-          <button type="button" class="carousel-btn secondary" id="carouselNext" aria-label="Next screenshot">›</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <footer class="app-footer">
-    <a href="https://collider.hr" target="_blank" rel="noopener noreferrer">© Collider Interactive Studio 2026</a><span class="sep">·</span><a href="https://collider.hr/privacy/" target="_blank" rel="noopener noreferrer">Privacy</a><span class="sep">·</span><a href="LICENSE" target="_blank" rel="noopener noreferrer">MIT</a>
-  </footer>
-
-  <script>
-    const CHANNEL_EPSILON = 8;
-    const ALPHA_EPSILON = 0.01;
-    const DEBOUNCE_MS = 180;
-
-    const lightFile = document.getElementById('lightFile');
-    const darkFile = document.getElementById('darkFile');
-    const lightFileName = document.getElementById('lightFileName');
-    const darkFileName = document.getElementById('darkFileName');
-    const settingsBlock = document.getElementById('settingsBlock');
-    const statusEl = document.getElementById('status');
-    const preview = document.getElementById('preview');
-    const previewWrap = document.getElementById('previewWrap');
-    const downloadBtn = document.getElementById('download');
-    const regenerateBtn = document.getElementById('regenerate');
-    const thumbRow = document.getElementById('thumbRow');
-    const thumbLight = document.getElementById('thumbLight');
-    const thumbDark = document.getElementById('thumbDark');
-
-    let lightData = null;
-    let darkData = null;
-    let width = 0;
-    let height = 0;
-    let debounceTimer = null;
-    let eyedropTarget = null;
-    let processing = false;
-
-    const bgLight = { picker: 'bgLightPicker', hex: 'bgLightHex', r: 'bgLightR', g: 'bgLightG', b: 'bgLightB', rn: 'bgLightRn', gn: 'bgLightGn', bn: 'bgLightBn' };
-    const bgDark = { picker: 'bgDarkPicker', hex: 'bgDarkHex', r: 'bgDarkR', g: 'bgDarkG', b: 'bgDarkB', rn: 'bgDarkRn', gn: 'bgDarkGn', bn: 'bgDarkBn' };
-
-    function setStatus(msg, type = '') {
-      statusEl.textContent = msg;
-      statusEl.className = type;
-    }
-
-    function rgbToHex(r, g, b) {
-      return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
-    }
-
-    function hexToRgb(hex) {
-      const h = hex.replace('#', '');
-      return {
-        r: parseInt(h.slice(0, 2), 16),
-        g: parseInt(h.slice(2, 4), 16),
-        b: parseInt(h.slice(4, 6), 16)
-      };
-    }
-
-    function getBg(group) {
-      return {
-        r: +document.getElementById(group.r).value,
-        g: +document.getElementById(group.g).value,
-        b: +document.getElementById(group.b).value
-      };
-    }
-
-    function setBg(group, r, g, b) {
-      document.getElementById(group.r).value = r;
-      document.getElementById(group.g).value = g;
-      document.getElementById(group.b).value = b;
-      document.getElementById(group.rn).value = r;
-      document.getElementById(group.gn).value = g;
-      document.getElementById(group.bn).value = b;
-      document.getElementById(group.picker).value = rgbToHex(r, g, b);
-      document.getElementById(group.hex).textContent = rgbToHex(r, g, b);
-    }
-
-    function bindBgSync(group) {
-      const picker = document.getElementById(group.picker);
-      const channels = [
-        [group.r, group.rn],
-        [group.g, group.gn],
-        [group.b, group.bn]
-      ];
-
-      picker.addEventListener('input', () => {
-        const { r, g, b } = hexToRgb(picker.value);
-        setBg(group, r, g, b);
-        scheduleProcess();
-      });
-
-      channels.forEach(([rangeId, numId]) => {
-        const range = document.getElementById(rangeId);
-        const num = document.getElementById(numId);
-        const sync = (val) => {
-          const v = Math.max(0, Math.min(255, +val));
-          range.value = v;
-          num.value = v;
-          const bg = getBg(group);
-          picker.value = rgbToHex(bg.r, bg.g, bg.b);
-          document.getElementById(group.hex).textContent = rgbToHex(bg.r, bg.g, bg.b);
-          scheduleProcess();
-        };
-        range.addEventListener('input', () => sync(range.value));
-        num.addEventListener('input', () => sync(num.value));
-      });
-    }
-
-    bindBgSync(bgLight);
-    bindBgSync(bgDark);
-
-    document.getElementById('alphaCutoff').addEventListener('input', e => {
-      document.getElementById('alphaCutoffn').value = e.target.value;
-      scheduleProcess();
-    });
-    document.getElementById('alphaCutoffn').addEventListener('input', e => {
-      const v = Math.max(0, Math.min(50, +e.target.value || 0));
-      document.getElementById('alphaCutoff').value = v;
-      document.getElementById('alphaCutoffn').value = v;
-      scheduleProcess();
-    });
-    document.getElementById('alphaCombine').addEventListener('change', scheduleProcess);
-    document.getElementById('recoverySource').addEventListener('change', scheduleProcess);
-    document.getElementById('diffMetric').addEventListener('change', scheduleProcess);
-
-    function bindRangePair(rangeId, numId, max, onChange) {
-      const range = document.getElementById(rangeId);
-      const num = document.getElementById(numId);
-      const sync = (val) => {
-        const v = Math.max(0, Math.min(max, +val || 0));
-        range.value = v;
-        num.value = v;
-        onChange();
-      };
-      range.addEventListener('input', () => sync(range.value));
-      num.addEventListener('input', () => sync(num.value));
-    }
-
-    bindRangePair('diffGate', 'diffGaten', 80, scheduleProcess);
-    bindRangePair('diffGateSoft', 'diffGateSoftn', 40, scheduleProcess);
-    bindRangePair('blobMinArea', 'blobMinArean', 50000, scheduleProcess);
-    bindRangePair('blobThreshold', 'blobThresholdn', 255, scheduleProcess);
-    bindRangePair('blobMorph', 'blobMorphn', 3, scheduleProcess);
-    bindRangePair('alphaHard', 'alphaHardn', 255, scheduleProcess);
-    document.getElementById('blobEnabled').addEventListener('change', scheduleProcess);
-    document.getElementById('blobLargest').addEventListener('change', scheduleProcess);
-
-    function loadImage(file) {
-      return new Promise((resolve, reject) => {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-          URL.revokeObjectURL(url);
-          resolve(img);
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(url);
-          reject(new Error('Could not load image.'));
-        };
-        img.src = url;
-      });
-    }
-
-    function imageToData(img, w, h) {
-      const c = document.createElement('canvas');
-      c.width = w;
-      c.height = h;
-      const ctx = c.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(img, 0, 0, w, h);
-      return ctx.getImageData(0, 0, w, h);
-    }
-
-    const THUMB_DISPLAY_MAX = 120;
-
-    function drawThumb(canvas, img) {
-      const aspect = img.width / img.height;
-      let dispW, dispH;
-      if (aspect >= 1) {
-        dispW = THUMB_DISPLAY_MAX;
-        dispH = Math.round(THUMB_DISPLAY_MAX / aspect);
-      } else {
-        dispH = 160;
-        dispW = Math.round(160 * aspect);
-      }
-      const dpr = window.devicePixelRatio || 1;
-      const renderW = Math.round(dispW * dpr);
-      const renderH = Math.round(dispH * dpr);
-      canvas.width = renderW;
-      canvas.height = renderH;
-      canvas.style.width = dispW + 'px';
-      canvas.style.height = dispH + 'px';
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, renderW, renderH);
-    }
-
-    function hasValidBgDiff(bgL, bgD) {
-      return Math.abs(bgL.r - bgD.r) >= CHANNEL_EPSILON ||
-        Math.abs(bgL.g - bgD.g) >= CHANNEL_EPSILON ||
-        Math.abs(bgL.b - bgD.b) >= CHANNEL_EPSILON;
-    }
-
-    function combineAlphas(values, mode) {
-      if (values.length === 0) return 0;
-      if (mode === 'min') return Math.min(...values);
-      if (mode === 'max') return Math.max(...values);
-      return values.reduce((a, b) => a + b, 0) / values.length;
-    }
-
-    function combineValues(values, mode) {
-      return combineAlphas(values, mode === 'avg' ? 'avg' : mode);
-    }
-
-    function smoothstep(edge0, edge1, x) {
-      if (edge1 <= edge0) return x >= edge0 ? 1 : 0;
-      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-      return t * t * (3 - 2 * t);
-    }
-
-    function recoverForeground(i, alpha, bgL, bgD, ld, dd, recovery) {
-      const invA = 1 - alpha;
-      const out = [0, 0, 0];
-      for (let c = 0; c < 3; c++) {
-        const fromDark = (dd[i + c] - invA * [bgD.r, bgD.g, bgD.b][c]) / alpha;
-        const fromLight = (ld[i + c] - invA * [bgL.r, bgL.g, bgL.b][c]) / alpha;
-        let fc;
-        if (recovery === 'dark') fc = fromDark;
-        else if (recovery === 'light') fc = fromLight;
-        else fc = (fromDark + fromLight) * 0.5;
-        out[c] = Math.max(0, Math.min(255, Math.round(fc)));
-      }
-      return out;
-    }
-
-    function sampleForeground(i, ld, dd, recovery) {
-      if (recovery === 'dark') return [dd[i], dd[i + 1], dd[i + 2]];
-      if (recovery === 'light') return [ld[i], ld[i + 1], ld[i + 2]];
-      return [
-        Math.round((ld[i] + dd[i]) * 0.5),
-        Math.round((ld[i + 1] + dd[i + 1]) * 0.5),
-        Math.round((ld[i + 2] + dd[i + 2]) * 0.5)
-      ];
-    }
-
-    function morphBinary(grid, w, h, radius, erode) {
-      if (radius <= 0) return;
-      const out = new Uint8Array(grid.length);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          let v = erode ? 1 : 0;
-          for (let dy = -radius; dy <= radius; dy++) {
-            for (let dx = -radius; dx <= radius; dx++) {
-              const nx = x + dx;
-              const ny = y + dy;
-              if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
-                if (erode) v = 0;
-                continue;
-              }
-              const s = grid[ny * w + nx];
-              if (erode) { if (!s) v = 0; }
-              else { if (s) v = 1; }
-            }
-          }
-          out[y * w + x] = v;
-        }
-      }
-      grid.set(out);
-    }
-
-    function cleanupBlobs(imageData, w, h) {
-      if (!document.getElementById('blobEnabled').checked) return;
-
-      const minArea = +document.getElementById('blobMinArea').value;
-      const keepLargest = document.getElementById('blobLargest').checked;
-      const threshold = +document.getElementById('blobThreshold').value;
-      const morphRadius = +document.getElementById('blobMorph').value;
-      const data = imageData.data;
-      const n = w * h;
-      const fg = new Uint8Array(n);
-
-      for (let p = 0; p < n; p++) {
-        fg[p] = data[p * 4 + 3] >= threshold ? 1 : 0;
-      }
-
-      if (morphRadius > 0) {
-        morphBinary(fg, w, h, morphRadius, true);
-        morphBinary(fg, w, h, morphRadius, false);
-      }
-
-      const parent = new Int32Array(n);
-      for (let i = 0; i < n; i++) parent[i] = fg[i] ? i : -1;
-
-      function find(x) {
-        let r = x;
-        while (parent[r] !== r) {
-          parent[r] = parent[parent[r]];
-          r = parent[r];
-        }
-        return r;
-      }
-
-      function union(a, b) {
-        const ra = find(a);
-        const rb = find(b);
-        if (ra !== rb) parent[rb] = ra;
-      }
-
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const i = y * w + x;
-          if (!fg[i]) continue;
-          if (x > 0 && fg[i - 1]) union(i, i - 1);
-          if (y > 0 && fg[i - w]) union(i, i - w);
-        }
-      }
-
-      const sizes = new Map();
-      for (let i = 0; i < n; i++) {
-        if (!fg[i]) continue;
-        const r = find(i);
-        sizes.set(r, (sizes.get(r) || 0) + 1);
-      }
-
-      if (sizes.size === 0) return;
-
-      let largestRoot = -1;
-      let largestSize = 0;
-      for (const [root, size] of sizes) {
-        if (size > largestSize) {
-          largestSize = size;
-          largestRoot = root;
-        }
-      }
-
-      for (let i = 0; i < n; i++) {
-        if (!fg[i]) continue;
-        const root = find(i);
-        const size = sizes.get(root);
-        let keep = true;
-        if (keepLargest && root !== largestRoot) keep = false;
-        if (minArea > 0 && size < minArea) keep = false;
-        if (!keep) {
-          const oi = i * 4;
-          data[oi] = data[oi + 1] = data[oi + 2] = data[oi + 3] = 0;
-        }
-      }
-    }
-
-    function finalizeAlpha(imageData) {
-      const hard = +document.getElementById('alphaHard').value;
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const a = d[i + 3];
-        if (a === 0) {
-          d[i] = d[i + 1] = d[i + 2] = 0;
-        } else if (hard > 0 && a < hard) {
-          d[i] = d[i + 1] = d[i + 2] = d[i + 3] = 0;
-        }
-      }
-    }
-
-    function processPixels() {
-      if (!lightData || !darkData) return null;
-
-      const bgL = getBg(bgLight);
-      const bgD = getBg(bgDark);
-      const cutoff = +document.getElementById('alphaCutoff').value / 255;
-      const combine = document.getElementById('alphaCombine').value;
-      const recovery = document.getElementById('recoverySource').value;
-      const gateLow = +document.getElementById('diffGate').value / 100;
-      const gateSoft = +document.getElementById('diffGateSoft').value / 100;
-      const gateHigh = Math.min(1, gateLow + gateSoft);
-      const diffMetric = document.getElementById('diffMetric').value;
-
-      if (!hasValidBgDiff(bgL, bgD)) {
-        setStatus('bgLight and bgDark must differ on at least one channel (≥ 8).', 'error');
-        return null;
-      }
-
-      const out = new ImageData(width, height);
-      const ld = lightData.data;
-      const dd = darkData.data;
-      const od = out.data;
-
-      const bgDiff = [bgL.r - bgD.r, bgL.g - bgD.g, bgL.b - bgD.b];
-
-      for (let i = 0; i < ld.length; i += 4) {
-        const alphas = [];
-        const diffRatios = [];
-        for (let c = 0; c < 3; c++) {
-          const diffBg = bgDiff[c];
-          if (Math.abs(diffBg) < CHANNEL_EPSILON) continue;
-          const obsDiff = ld[i + c] - dd[i + c];
-          const absObs = Math.abs(obsDiff);
-          const absBg = Math.abs(diffBg);
-          diffRatios.push(absObs / absBg);
-          let a = 1 - obsDiff / diffBg;
-          if (a < 0) a = 0;
-          if (a > 1) a = 1;
-          alphas.push(a);
-        }
-
-        const diffScore = diffRatios.length
-          ? combineValues(diffRatios, diffMetric)
-          : 0;
-        let matteAlpha = combineAlphas(alphas, combine);
-
-        const mattingWeight = smoothstep(gateLow, gateHigh, diffScore);
-        let alpha = matteAlpha + (1 - matteAlpha) * (1 - mattingWeight);
-
-        if (alpha < cutoff) alpha = 0;
-
-        const oi = i;
-        if (alpha <= ALPHA_EPSILON) {
-          od[oi] = od[oi + 1] = od[oi + 2] = 0;
-          od[oi + 3] = 0;
-          continue;
-        }
-
-        let rgb;
-        if (mattingWeight < 0.01) {
-          rgb = sampleForeground(i, ld, dd, recovery);
-        } else if (mattingWeight > 0.99) {
-          rgb = recoverForeground(i, alpha, bgL, bgD, ld, dd, recovery);
-        } else {
-          const opaque = sampleForeground(i, ld, dd, recovery);
-          const matte = recoverForeground(i, alpha, bgL, bgD, ld, dd, recovery);
-          rgb = opaque.map((v, c) => Math.round(v * (1 - mattingWeight) + matte[c] * mattingWeight));
-        }
-        od[oi] = rgb[0];
-        od[oi + 1] = rgb[1];
-        od[oi + 2] = rgb[2];
-        od[oi + 3] = Math.round(alpha * 255);
-      }
-
-      cleanupBlobs(out, width, height);
-      finalizeAlpha(out);
-      return out;
-    }
-
-    function applyPreview(imageData) {
-      preview.width = width;
-      preview.height = height;
-      preview.getContext('2d').putImageData(imageData, 0, 0);
-      downloadBtn.disabled = false;
-    }
-
-    function regenerateNow() {
-      if (!lightData || !darkData || processing) return;
-      processing = true;
-      requestAnimationFrame(() => {
-        const t0 = performance.now();
-        const result = processPixels();
-        if (result) {
-          applyPreview(result);
-          const ms = Math.round(performance.now() - t0);
-          setStatus(`Preview updated (${width}×${height}, ${ms} ms).`, 'ok');
-        }
-        processing = false;
-      });
-    }
-
-    function scheduleProcess() {
-      if (!lightData || !darkData) return;
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(regenerateNow, DEBOUNCE_MS);
-    }
-
-    async function tryLoadPair() {
-      const lf = lightFile.files[0];
-      const df = darkFile.files[0];
-      lightFileName.textContent = lf ? lf.name : '';
-      darkFileName.textContent = df ? df.name : '';
-
-      if (!lf || !df) {
-        lightData = darkData = null;
-        width = height = 0;
-        settingsBlock.classList.add('controls-disabled');
-        downloadBtn.disabled = true;
-        thumbRow.hidden = true;
-        setStatus('Upload both images to begin.', '');
-        return;
-      }
-
-      try {
-        const [imgL, imgD] = await Promise.all([loadImage(lf), loadImage(df)]);
-        if (imgL.width !== imgD.width || imgL.height !== imgD.height) {
-          lightData = darkData = null;
-          settingsBlock.classList.add('controls-disabled');
-          downloadBtn.disabled = true;
-          thumbRow.hidden = true;
-          setStatus(`Dimension mismatch: ${imgL.width}×${imgL.height} vs ${imgD.width}×${imgD.height}.`, 'error');
-          return;
-        }
-
-        width = imgL.width;
-        height = imgL.height;
-        lightData = imageToData(imgL, width, height);
-        darkData = imageToData(imgD, width, height);
-
-        drawThumb(thumbLight, imgL);
-        drawThumb(thumbDark, imgD);
-
-        thumbRow.hidden = false;
-        settingsBlock.classList.remove('controls-disabled');
-        setStatus('Images loaded. Adjust plate colors and preview.', 'ok');
-        regenerateNow();
-      } catch (e) {
-        setStatus(e.message || 'Failed to load images.', 'error');
-      }
-    }
-
-    function sampleFromThumb(canvas, clientX, clientY, sourceData) {
-      const rect = canvas.getBoundingClientRect();
-      const x = Math.floor((clientX - rect.left) / rect.width * width);
-      const y = Math.floor((clientY - rect.top) / rect.height * height);
-      const xi = Math.max(0, Math.min(width - 1, x));
-      const yi = Math.max(0, Math.min(height - 1, y));
-      const idx = (yi * width + xi) * 4;
-      return {
-        r: sourceData.data[idx],
-        g: sourceData.data[idx + 1],
-        b: sourceData.data[idx + 2]
-      };
-    }
-
-    document.getElementById('pickLight').addEventListener('click', () => {
-      eyedropTarget = eyedropTarget === 'light' ? null : 'light';
-      document.getElementById('pickLight').classList.toggle('active', eyedropTarget === 'light');
-      document.getElementById('pickDark').classList.remove('active');
-    });
-    document.getElementById('pickDark').addEventListener('click', () => {
-      eyedropTarget = eyedropTarget === 'dark' ? null : 'dark';
-      document.getElementById('pickDark').classList.toggle('active', eyedropTarget === 'dark');
-      document.getElementById('pickLight').classList.remove('active');
-    });
-
-    thumbLight.addEventListener('click', e => {
-      if (!lightData || !eyedropTarget) return;
-      const rgb = sampleFromThumb(thumbLight, e.clientX, e.clientY, lightData);
-      if (eyedropTarget === 'light') setBg(bgLight, rgb.r, rgb.g, rgb.b);
-      else setBg(bgDark, rgb.r, rgb.g, rgb.b);
-      eyedropTarget = null;
-      document.getElementById('pickLight').classList.remove('active');
-      document.getElementById('pickDark').classList.remove('active');
-      scheduleProcess();
-    });
-    thumbDark.addEventListener('click', e => {
-      if (!darkData || !eyedropTarget) return;
-      const rgb = sampleFromThumb(thumbDark, e.clientX, e.clientY, darkData);
-      if (eyedropTarget === 'light') setBg(bgLight, rgb.r, rgb.g, rgb.b);
-      else setBg(bgDark, rgb.r, rgb.g, rgb.b);
-      eyedropTarget = null;
-      document.getElementById('pickLight').classList.remove('active');
-      document.getElementById('pickDark').classList.remove('active');
-      scheduleProcess();
-    });
-
-    document.getElementById('bgToggle').addEventListener('click', e => {
-      const btn = e.target.closest('button[data-bg]');
-      if (!btn) return;
-      document.querySelectorAll('#bgToggle button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      previewWrap.classList.remove('bg-checker', 'bg-white', 'bg-black');
-      previewWrap.classList.add('bg-' + btn.dataset.bg);
-    });
-
-    lightFile.addEventListener('change', tryLoadPair);
-    darkFile.addEventListener('change', tryLoadPair);
-    regenerateBtn.addEventListener('click', () => {
-      clearTimeout(debounceTimer);
-      regenerateNow();
-    });
-
-    downloadBtn.addEventListener('click', () => {
-      if (preview.width === 0) return;
-      preview.toBlob(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'nanoalpha.png';
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }, 'image/png', 1);
-    });
-
-    (function initCarousel() {
-      const slides = [...document.querySelectorAll('#phoneCarousel .carousel-slide')];
-      const dotsEl = document.getElementById('carouselDots');
-      if (!slides.length) return;
-
-      let index = 0;
-      let timer = null;
-
-      slides.forEach((_, i) => {
-        const dot = document.createElement('button');
-        dot.type = 'button';
-        dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
-        dot.setAttribute('role', 'tab');
-        dot.setAttribute('aria-label', 'Screenshot ' + (i + 1));
-        dot.addEventListener('click', () => goTo(i, true));
-        dotsEl.appendChild(dot);
-      });
-
-      const dots = [...dotsEl.children];
-
-      function goTo(i, userAction) {
-        slides[index].classList.remove('active');
-        dots[index].classList.remove('active');
-        index = (i + slides.length) % slides.length;
-        slides[index].classList.add('active');
-        dots[index].classList.add('active');
-        if (userAction) restartAutoplay();
-      }
-
-      function restartAutoplay() {
-        clearInterval(timer);
-        timer = setInterval(() => goTo(index + 1, false), 4500);
-      }
-
-      document.getElementById('carouselPrev').addEventListener('click', () => goTo(index - 1, true));
-      document.getElementById('carouselNext').addEventListener('click', () => goTo(index + 1, true));
-
-      restartAutoplay();
-    })();
-  </script>
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
-  <script defer src="/_vercel/insights/script.js"></script>
-</body>
+    <script src="app.js"></script>
+  </body>
 </html>
