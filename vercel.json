@@ -4,6 +4,6 @@
   "rewrites": [
     { "source": "/health", "destination": "/api/health" },
     { "source": "/openapi.json", "destination": "/api/openapi.json" },
-    { "source": "/v1/:path*", "destination": "/api/v1/:path*" }
+    { "source": "/v1/remove-background", "destination": "/api/remove-background" }
   ]
 }
