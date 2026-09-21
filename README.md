@@ -32,6 +32,61 @@ http://localhost:4173/
 
 Uploaded images can usually be processed even when opening `index.html` directly, but the bundled demo image in `assets/test-image.png` should be loaded over `localhost`. Some browsers allow drawing local `file://` images to canvas but block `getImageData()`, which makes the source preview appear while the processed result stays empty.
 
+## Public API
+
+NanoAlpha also includes an authenticated HTTP API for programs and AI agents. It accepts PNG, JPEG, or WebP input and returns a transparent PNG. Uploaded images are decoded and processed in memory; the API does not persist them.
+
+Install dependencies and start the development server:
+
+```bash
+npm install
+npm start
+```
+
+When `NANOALPHA_API_KEYS` is not set outside production, the local development key is `nanoalpha-dev-key`. Configure one or more production keys as a comma-separated environment variable:
+
+```bash
+NANOALPHA_API_KEYS="first-long-random-key,second-long-random-key" npm start
+```
+
+Remove a background:
+
+```bash
+curl http://localhost:8787/v1/remove-background \
+  -H "Authorization: Bearer nanoalpha-dev-key" \
+  -F "image=@input.png" \
+  --output nanoalpha.png
+```
+
+For a two-image matte, upload the matching render under `contrast_image`:
+
+```bash
+curl http://localhost:8787/v1/remove-background \
+  -H "Authorization: Bearer nanoalpha-dev-key" \
+  -F "image=@light-background.png" \
+  -F "contrast_image=@dark-background.png" \
+  --output nanoalpha.png
+```
+
+Optional multipart fields are `background_color`, `contrast_background_color`, `tolerance`, `edge_width`, `softness`, `refine`, `decontaminate`, `clip`, and `fill_holes`. See [`/openapi.json`](http://localhost:8787/openapi.json) for the machine-readable API definition.
+
+Runtime limits are configurable through the variables listed in `.env.example`. Defaults are 20 MB per file, 25 megapixels after decoding, two uploaded files, 60 requests per API key per minute, and two concurrent processing jobs. In production, startup fails unless `NANOALPHA_API_KEYS` is explicitly configured.
+
+Run the test suite with:
+
+```bash
+npm test
+```
+
+The included `Dockerfile` runs only the API:
+
+```bash
+docker build -t nanoalpha-api .
+docker run --rm -p 8787:8787 \
+  -e NANOALPHA_API_KEYS="replace-with-a-long-random-key" \
+  nanoalpha-api
+```
+
 ## Workflow
 
 1. Upload a source image, or click **Load demo**.

@@ -1,0 +1,9 @@
+.git
+.env
+node_modules
+npm-debug.log*
+test
+assets
+index.html
+app.js
+styles.css
