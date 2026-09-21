@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import sharp from "sharp";
-import { buildApp } from "../api/app.js";
+import { normalizeRequestUrl } from "../api/[...path].js";
+import { buildApp } from "../server/app.js";
 
 function multipartBody(fields, files) {
   const boundary = "----nanoalpha-test-boundary";
@@ -24,6 +25,11 @@ test("health does not require authentication", async (context) => {
   const response = await app.inject({ method: "GET", url: "/health" });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().status, "ok");
+});
+
+test("Vercel adapter removes only the internal api prefix", () => {
+  assert.equal(normalizeRequestUrl("/api/v1/remove-background?mode=auto"), "/v1/remove-background?mode=auto");
+  assert.equal(normalizeRequestUrl("/health"), "/health");
 });
 
 test("processing endpoint requires a valid API key", async (context) => {

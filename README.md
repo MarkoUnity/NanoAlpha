@@ -72,6 +72,23 @@ Optional multipart fields are `background_color`, `contrast_background_color`, `
 
 Runtime limits are configurable through the variables listed in `.env.example`. Defaults are 20 MB per file, 25 megapixels after decoding, two uploaded files, 60 requests per API key per minute, and two concurrent processing jobs. In production, startup fails unless `NANOALPHA_API_KEYS` is explicitly configured.
 
+### Vercel deployment
+
+`vercel.json` keeps the static frontend on the root domain and rewrites `/health`, `/openapi.json`, and `/v1/*` to a single serverless function. Before deploying, add `NANOALPHA_API_KEYS` in Vercel Project Settings → Environment Variables and enable it for Production (and Preview if preview deployments should accept the same key).
+
+Vercel Functions have a 4.5 MB request and response limit, so NanoAlpha uses a conservative 4 MB upload/output limit and a 12-megapixel default while running on Vercel. The local and Docker service retain the larger limits listed above.
+
+After deployment, verify production with:
+
+```bash
+curl https://nanoalpha.collider.hr/health
+
+curl https://nanoalpha.collider.hr/v1/remove-background \
+  -H "Authorization: Bearer $NANOALPHA_API_KEY" \
+  -F "image=@assets/test-image.png" \
+  --output nanoalpha-production-test.png
+```
+
 Run the test suite with:
 
 ```bash

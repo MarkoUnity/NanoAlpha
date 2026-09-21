@@ -5,7 +5,10 @@ export const openapi = {
     version: "1.0.0",
     description: "Remove solid or near-solid image backgrounds and return an RGBA PNG."
   },
-  servers: [{ url: "https://api.nanoalpha.app" }],
+  servers: [
+    { url: "https://nanoalpha.collider.hr", description: "Production" },
+    { url: "http://localhost:8787", description: "Local development" }
+  ],
   paths: {
     "/health": {
       get: { summary: "Service health", responses: { 200: { description: "Service is healthy" } } }

@@ -5,8 +5,8 @@
   "description": "Browser tool and public API for extracting transparent images",
   "type": "module",
   "scripts": {
-    "start": "node api/server.js",
-    "dev": "node --watch api/server.js",
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
     "test": "node --test"
   },
   "engines": {

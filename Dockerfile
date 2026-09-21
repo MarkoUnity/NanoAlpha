@@ -6,8 +6,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY --chown=node:node api ./api
+COPY --chown=node:node server ./server
 
 USER node
 EXPOSE 8787
-CMD ["node", "api/server.js"]
+CMD ["node", "server/server.js"]

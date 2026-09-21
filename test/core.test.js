@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectBackground, removeBackground } from "../api/core.js";
+import { detectBackground, removeBackground } from "../server/core.js";
 
 function solidScene(width, height, background, foreground) {
   const data = new Uint8ClampedArray(width * height * 4);

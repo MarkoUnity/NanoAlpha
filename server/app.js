@@ -79,8 +79,10 @@ function apiKeysFromEnvironment(environment) {
 
 export async function buildApp(options = {}) {
   const environment = options.environment ?? process.env;
-  const maximumFileBytes = positiveInteger(environment.NANOALPHA_MAX_FILE_BYTES, 20 * 1024 * 1024);
-  const maximumPixels = positiveInteger(environment.NANOALPHA_MAX_PIXELS, 25_000_000);
+  const isVercel = Boolean(environment.VERCEL);
+  const maximumFileBytes = positiveInteger(environment.NANOALPHA_MAX_FILE_BYTES, isVercel ? 4 * 1024 * 1024 : 20 * 1024 * 1024);
+  const maximumPixels = positiveInteger(environment.NANOALPHA_MAX_PIXELS, isVercel ? 12_000_000 : 25_000_000);
+  const maximumResponseBytes = isVercel ? 4 * 1024 * 1024 : Number.POSITIVE_INFINITY;
   const requestsPerMinute = positiveInteger(environment.NANOALPHA_RATE_LIMIT_PER_MINUTE, 60);
   const maximumConcurrent = positiveInteger(environment.NANOALPHA_MAX_CONCURRENT, 2);
   const apiKeys = new Set(options.apiKeys ?? apiKeysFromEnvironment(environment));
@@ -88,7 +90,7 @@ export async function buildApp(options = {}) {
   let activeJobs = 0;
   const app = Fastify({
     logger: options.logger ?? false,
-    bodyLimit: maximumFileBytes * 2 + 1024 * 1024,
+    bodyLimit: isVercel ? 4 * 1024 * 1024 : maximumFileBytes * 2 + 1024 * 1024,
     requestTimeout: 30_000,
     connectionTimeout: 10_000
   });
@@ -199,6 +201,9 @@ export async function buildApp(options = {}) {
     const output = await sharp(Buffer.from(result.data.buffer, result.data.byteOffset, result.data.byteLength), {
       raw: { width: result.width, height: result.height, channels: 4 }
     }).png({ compressionLevel: 9 }).toBuffer();
+    if (output.length > maximumResponseBytes) {
+      throw httpError(413, "OUTPUT_TOO_LARGE", "Processed PNG exceeds the hosting platform response limit");
+    }
 
     return reply
       .header("Content-Disposition", 'inline; filename="nanoalpha.png"')
