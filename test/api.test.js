@@ -40,6 +40,24 @@ test("processing endpoint requires a valid API key", async (context) => {
   assert.equal(response.json().error.code, "UNAUTHORIZED");
 });
 
+test("public mode accepts anonymous requests and enables CORS", async (context) => {
+  const app = await buildApp({
+    environment: { NODE_ENV: "production", NANOALPHA_PUBLIC_API: "true" }
+  });
+  context.after(() => app.close());
+  const preflight = await app.inject({
+    method: "OPTIONS",
+    url: "/v1/remove-background",
+    headers: { origin: "https://agent.example" }
+  });
+  assert.equal(preflight.statusCode, 204);
+  assert.equal(preflight.headers["access-control-allow-origin"], "*");
+
+  const info = await app.inject({ method: "GET", url: "/v1/info" });
+  assert.equal(info.statusCode, 200);
+  assert.equal(info.json().public, true);
+});
+
 test("returns a transparent PNG", async (context) => {
   const app = await buildApp({ apiKeys: ["test-key"] });
   context.after(() => app.close());

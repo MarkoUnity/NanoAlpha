@@ -65,12 +65,13 @@ async function decodeImage(buffer, maximumPixels) {
   }
 }
 
-function apiKeysFromEnvironment(environment) {
+function apiKeysFromEnvironment(environment, allowEmpty = false) {
   const configured = (environment.NANOALPHA_API_KEYS || "")
     .split(",")
     .map((key) => key.trim())
     .filter(Boolean);
   if (configured.length) return configured;
+  if (allowEmpty) return [];
   if (environment.NODE_ENV === "production") {
     throw new Error("NANOALPHA_API_KEYS must be configured in production");
   }
@@ -80,12 +81,13 @@ function apiKeysFromEnvironment(environment) {
 export async function buildApp(options = {}) {
   const environment = options.environment ?? process.env;
   const isVercel = Boolean(environment.VERCEL);
+  const publicApi = environment.NANOALPHA_PUBLIC_API === "true";
   const maximumFileBytes = positiveInteger(environment.NANOALPHA_MAX_FILE_BYTES, isVercel ? 4 * 1024 * 1024 : 20 * 1024 * 1024);
   const maximumPixels = positiveInteger(environment.NANOALPHA_MAX_PIXELS, isVercel ? 12_000_000 : 25_000_000);
   const maximumResponseBytes = isVercel ? 4 * 1024 * 1024 : Number.POSITIVE_INFINITY;
-  const requestsPerMinute = positiveInteger(environment.NANOALPHA_RATE_LIMIT_PER_MINUTE, 60);
+  const requestsPerMinute = positiveInteger(environment.NANOALPHA_RATE_LIMIT_PER_MINUTE, publicApi ? 6 : 60);
   const maximumConcurrent = positiveInteger(environment.NANOALPHA_MAX_CONCURRENT, 2);
-  const apiKeys = new Set(options.apiKeys ?? apiKeysFromEnvironment(environment));
+  const apiKeys = new Set(options.apiKeys ?? apiKeysFromEnvironment(environment, publicApi));
   const rateBuckets = new Map();
   let activeJobs = 0;
   const app = Fastify({
@@ -99,16 +101,26 @@ export async function buildApp(options = {}) {
     limits: { fileSize: maximumFileBytes, files: 2, fields: 12, parts: 14 }
   });
 
-  app.addHook("onRequest", async (request) => {
+  app.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/v1/")) return;
+    reply
+      .header("Access-Control-Allow-Origin", "*")
+      .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+      .header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+      .header("Access-Control-Expose-Headers", "X-NanoAlpha-Mode, X-NanoAlpha-Background, X-NanoAlpha-Width, X-NanoAlpha-Height");
+    if (request.method === "OPTIONS") return reply.code(204).send();
+
     const authorization = request.headers.authorization || "";
     const key = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-    if (!key || !apiKeys.has(key)) throw httpError(401, "UNAUTHORIZED", "Missing or invalid API key");
+    const validKey = key && apiKeys.has(key);
+    if (!publicApi && !validKey) throw httpError(401, "UNAUTHORIZED", "Missing or invalid API key");
+    const forwardedFor = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    const identity = validKey ? `key:${key}` : `ip:${forwardedFor || request.ip}`;
 
     const now = Date.now();
-    const bucket = rateBuckets.get(key);
+    const bucket = rateBuckets.get(identity);
     if (!bucket || now - bucket.startedAt >= 60_000) {
-      rateBuckets.set(key, { startedAt: now, count: 1 });
+      rateBuckets.set(identity, { startedAt: now, count: 1 });
       return;
     }
     bucket.count += 1;
@@ -140,6 +152,15 @@ export async function buildApp(options = {}) {
 
   app.get("/health", async () => ({ status: "ok", service: "nanoalpha-api", version: "1.0.0" }));
   app.get("/openapi.json", async (_request, reply) => reply.type("application/json").send(openapi));
+  app.get("/v1/info", async () => ({
+    service: "nanoalpha-api",
+    version: "1.0.0",
+    public: publicApi,
+    input_formats: ["image/png", "image/jpeg", "image/webp"],
+    output_format: "image/png",
+    maximum_file_bytes: maximumFileBytes,
+    maximum_pixels: maximumPixels
+  }));
 
   app.post("/v1/remove-background", async (request, reply) => {
     if (!request.isMultipart()) throw httpError(415, "UNSUPPORTED_MEDIA_TYPE", "Use multipart/form-data");

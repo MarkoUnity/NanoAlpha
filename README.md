@@ -34,7 +34,7 @@ Uploaded images can usually be processed even when opening `index.html` directly
 
 ## Public API
 
-NanoAlpha also includes an authenticated HTTP API for programs and AI agents. It accepts PNG, JPEG, or WebP input and returns a transparent PNG. Uploaded images are decoded and processed in memory; the API does not persist them.
+NanoAlpha also includes a public HTTP API for programs and AI agents. It accepts PNG, JPEG, or WebP input and returns a transparent PNG. Uploaded images are decoded and processed in memory; the API does not persist them.
 
 Install dependencies and start the development server:
 
@@ -43,7 +43,7 @@ npm install
 npm start
 ```
 
-When `NANOALPHA_API_KEYS` is not set outside production, the local development key is `nanoalpha-dev-key`. Configure one or more production keys as a comma-separated environment variable:
+Local development is authenticated by default. When `NANOALPHA_API_KEYS` is not set outside production, the development key is `nanoalpha-dev-key`. Configure one or more private keys as a comma-separated environment variable:
 
 ```bash
 NANOALPHA_API_KEYS="first-long-random-key,second-long-random-key" npm start
@@ -54,6 +54,14 @@ Remove a background:
 ```bash
 curl http://localhost:8787/v1/remove-background \
   -H "Authorization: Bearer nanoalpha-dev-key" \
+  -F "image=@input.png" \
+  --output nanoalpha.png
+```
+
+The production endpoint is public and does not require a key:
+
+```bash
+curl https://nanoalpha.collider.hr/v1/remove-background \
   -F "image=@input.png" \
   --output nanoalpha.png
 ```
@@ -74,7 +82,9 @@ Runtime limits are configurable through the variables listed in `.env.example`. 
 
 ### Vercel deployment
 
-`vercel.json` keeps the static frontend on the root domain and rewrites `/health`, `/openapi.json`, and `/v1/*` to a single serverless function. Before deploying, add `NANOALPHA_API_KEYS` in Vercel Project Settings → Environment Variables and enable it for Production (and Preview if preview deployments should accept the same key).
+`vercel.json` keeps the static frontend on the root domain and rewrites `/health`, `/openapi.json`, and `/v1/*` to serverless functions. Set `NANOALPHA_PUBLIC_API=true` in the Production environment to accept anonymous requests. Private deployments can leave it disabled and configure `NANOALPHA_API_KEYS` instead.
+
+The production project uses a Vercel WAF fixed-window rule on `/v1/remove-background`: five requests per IP address every ten minutes, with a `429` response after the limit. The application also keeps a per-instance fallback limiter, restricts processing to one concurrent job per instance, and limits Vercel inputs to six megapixels. Vercel Hobby automatically pauses deployments when included usage is exhausted, rather than charging on-demand usage.
 
 Vercel Functions have a 4.5 MB request and response limit, so NanoAlpha uses a conservative 4 MB upload/output limit and a 12-megapixel default while running on Vercel. The local and Docker service retain the larger limits listed above.
 
@@ -84,7 +94,6 @@ After deployment, verify production with:
 curl https://nanoalpha.collider.hr/health
 
 curl https://nanoalpha.collider.hr/v1/remove-background \
-  -H "Authorization: Bearer $NANOALPHA_API_KEY" \
   -F "image=@assets/test-image.png" \
   --output nanoalpha-production-test.png
 ```

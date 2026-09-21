@@ -3,7 +3,7 @@ export const openapi = {
   info: {
     title: "NanoAlpha API",
     version: "1.0.0",
-    description: "Remove solid or near-solid image backgrounds and return an RGBA PNG."
+    description: "Public background-removal API. Upload a solid or near-solid-background image and receive an RGBA PNG."
   },
   servers: [
     { url: "https://nanoalpha.collider.hr", description: "Production" },
@@ -13,11 +13,13 @@ export const openapi = {
     "/health": {
       get: { summary: "Service health", responses: { 200: { description: "Service is healthy" } } }
     },
+    "/v1/info": {
+      get: { summary: "Public API capabilities and active input limits", responses: { 200: { description: "API information" } } }
+    },
     "/v1/remove-background": {
       post: {
         operationId: "removeBackground",
         summary: "Remove an image background",
-        security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -45,17 +47,11 @@ export const openapi = {
         responses: {
           200: { description: "Transparent result", content: { "image/png": { schema: { type: "string", format: "binary" } } } },
           400: { description: "Invalid image or options" },
-          401: { description: "Missing or invalid API key" },
           413: { description: "Image exceeds configured limits" },
           429: { description: "Rate limit exceeded" },
           503: { description: "Image processing capacity is temporarily full" }
         }
       }
-    }
-  },
-  components: {
-    securitySchemes: {
-      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "API key" }
     }
   }
 };
